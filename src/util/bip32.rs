@@ -428,11 +428,9 @@ pub enum Error {
     /// A pk->pk derivation was attempted on a hardened key
     CannotDeriveFromHardenedKey,
     /// A secp256k1 error occurred
-    Ecdsa(secp256k1::Error), // TODO: This is not necessary ECDSA error and should be renamed
+    Secp256k1(secp256k1::Error),
     /// A child number was provided that was out of range
     InvalidChildNumber(u32),
-    /// Error creating a master seed --- for application use
-    RngError(String), // TODO: This option seems unused and should be removed, opening a way to make this type copiable
     /// Invalid childnumber format.
     InvalidChildNumberFormat,
     /// Invalid derivation path format.
@@ -449,9 +447,8 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::CannotDeriveFromHardenedKey => f.write_str("cannot derive hardened key from public key"),
-            Error::Ecdsa(ref e) => fmt::Display::fmt(e, f),
+            Error::Secp256k1(ref e) => fmt::Display::fmt(e, f),
             Error::InvalidChildNumber(ref n) => write!(f, "child number {} is invalid (not within [0, 2^31 - 1])", n),
-            Error::RngError(ref s) => write!(f, "rng error {}", s),
             Error::InvalidChildNumberFormat => f.write_str("invalid child number format"),
             Error::InvalidDerivationPathFormat => f.write_str("invalid derivation path format"),
             Error::UnknownVersion(ref bytes) => write!(f, "unknown version magic bytes: {:?}", bytes),
@@ -463,7 +460,7 @@ impl fmt::Display for Error {
 
 impl error::Error for Error {
     fn cause(&self) -> Option<&dyn error::Error> {
-       if let Error::Ecdsa(ref e) = *self {
+       if let Error::Secp256k1(ref e) = *self {
            Some(e)
        } else {
            None
@@ -475,13 +472,13 @@ impl From<key::Error> for Error {
     fn from(err: key::Error) -> Self {
         match err {
             key::Error::Base58(e) => Error::Base58(e),
-            key::Error::Secp256k1(e) => Error::Ecdsa(e),
+            key::Error::Secp256k1(e) => Error::Secp256k1(e),
         }
     }
 }
 
 impl From<secp256k1::Error> for Error {
-    fn from(e: secp256k1::Error) -> Error { Error::Ecdsa(e) }
+    fn from(e: secp256k1::Error) -> Error { Error::Secp256k1(e) }
 }
 
 impl From<base58::Error> for Error {
@@ -507,7 +504,7 @@ impl ExtendedPrivKey {
                 network: network,
                 key: secp256k1::SecretKey::from_slice(
                     &hmac_result[..32]
-                ).map_err(Error::Ecdsa)?,
+                ).map_err(Error::Secp256k1)?,
             },
             chain_code: ChainCode::from(&hmac_result[32..]),
         })
@@ -548,9 +545,9 @@ impl ExtendedPrivKey {
         let mut sk = PrivateKey {
             compressed: true,
             network: self.network,
-            key: secp256k1::SecretKey::from_slice(&hmac_result[..32]).map_err(Error::Ecdsa)?,
+            key: secp256k1::SecretKey::from_slice(&hmac_result[..32]).map_err(Error::Secp256k1)?,
         };
-        sk.key.add_assign(&self.private_key[..]).map_err(Error::Ecdsa)?;
+        sk.key.add_assign(&self.private_key[..]).map_err(Error::Secp256k1)?;
 
         Ok(ExtendedPrivKey {
             network: self.network,
@@ -589,7 +586,7 @@ impl ExtendedPrivKey {
                 network: network,
                 key: secp256k1::SecretKey::from_slice(
                     &data[46..78]
-                ).map_err(Error::Ecdsa)?,
+                ).map_err(Error::Secp256k1)?,
             },
         })
     }
@@ -681,7 +678,7 @@ impl ExtendedPubKey {
     ) -> Result<ExtendedPubKey, Error> {
         let (sk, chain_code) = self.ckd_pub_tweak(i)?;
         let mut pk = self.public_key;
-        pk.key.add_exp_assign(secp, &sk[..]).map_err(Error::Ecdsa)?;
+        pk.key.add_exp_assign(secp, &sk[..]).map_err(Error::Secp256k1)?;
 
         Ok(ExtendedPubKey {
             network: self.network,
