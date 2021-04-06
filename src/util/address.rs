@@ -497,7 +497,7 @@ impl Address {
                         32 => Some(AddressType::P2wsh),
                         _ => None,
                     },
-                    WitnessVersion::V1 => Some(AddressType::P2tr),
+                    WitnessVersion::V1 if prog.len() == 32 => Some(AddressType::P2tr),
                     _ => None,
                 }
             }
